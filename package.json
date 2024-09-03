@@ -10,9 +10,12 @@
     "start": "next start",
     "electron": "electron public/electron.js",
     "electron-dev": "wait-on http://localhost:3000 && electron public/electron.js",
-    "start:electron": "concurrently \"npm run dev\" \"npm run electron-dev\""
+    "start:electron": "concurrently \"npm run dev\" \"npm run electron-dev\"",
+    "generate:api": "orval --config orval.config.ts"
   },
   "dependencies": {
+    "@types/axios": "^0.9.36",
+    "axios": "^1.7.7",
     "next": "14.2.7",
     "react": "^18",
     "react-dom": "^18"
@@ -25,6 +28,7 @@
     "electron": "^32.0.1",
     "electron-builder": "^24.13.3",
     "electron-is-dev": "^3.0.1",
+    "orval": "^7.1.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
