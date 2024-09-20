@@ -1,22 +1,48 @@
-// ESM 방식으로 변경된 electron.js
-import { app, BrowserWindow } from 'electron';
-import isDev from 'electron-is-dev';
-import path from 'path'; // Node.js 모듈도 import로 불러옵니다.
+const { app, BrowserWindow } = require('electron');
+const path = require('path');
 
-function createWindow() {
-  const win = new BrowserWindow({
+// 동적 import로 electron-is-dev 가져오기
+const isDev = async () => (await import('electron-is-dev')).default;
+
+// 브라우저 창을 생성하는 함수
+async function createWindow() {
+  let win = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
-      nodeIntegration: true,
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
     },
   });
 
+  const devMode = await isDev();
+
   win.loadURL(
-    isDev
+    devMode
       ? 'http://localhost:3000'
-      : `file://${path.join(__dirname, '../build/index.html')}`
+      : `file://${path.join(__dirname, '../renderer/out/index.html')}`
   );
+
+  if (devMode) {
+    win.webContents.openDevTools();
+  }
+
+  win.on('closed', () => {
+    win = null;
+  });
 }
 
 app.on('ready', createWindow);
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
