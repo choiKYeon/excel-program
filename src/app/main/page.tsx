@@ -6,21 +6,91 @@ import { saveAs } from "file-saver";
 import ExcelJS from "exceljs"; // exceljs 라이브러리 사용
 import { useRouter } from "next/navigation";
 
+interface IncomeRange {
+  min: number;
+  max: number;
+  percentage: number;
+}
+
+const useIncomeRangeLocalStorage = () => {
+  const defaultRanges: IncomeRange[] = [
+    { min: 0, max: 0, percentage: 100 },
+    { min: 0, max: 0, percentage: 80 },
+    { min: 0, max: 0, percentage: 70 },
+    { min: 0, max: 0, percentage: 60 },
+    { min: 0, max: 0, percentage: 50 },
+  ];
+
+  const [incomeRanges, setIncomeRanges] =
+    useState<IncomeRange[]>(defaultRanges);
+
+  useEffect(() => {
+    // 애플리케이션 시작 시 로컬스토리지에서 데이터 불러오기
+    const savedRanges = localStorage.getItem("incomeRanges");
+
+    if (savedRanges) {
+      console.log(localStorage.getItem("incomeRanges"));
+
+      setIncomeRanges(JSON.parse(savedRanges));
+    } else {
+      // 저장된 데이터가 없으면 기본값 사용
+      setIncomeRanges(defaultRanges);
+    }
+  }, []);
+
+  const addIncomeRange = () => {
+    const newRange: IncomeRange = { min: 0, max: 0, percentage: 0 };
+    const updatedRanges = [...incomeRanges, newRange];
+    setIncomeRanges(updatedRanges);
+    saveIncomeRanges(updatedRanges);
+  };
+
+  const deleteIncomeRange = (index: number) => {
+    const updatedRanges = incomeRanges.filter((_, i) => i !== index);
+    setIncomeRanges(updatedRanges);
+    saveIncomeRanges(updatedRanges);
+  };
+
+  const saveIncomeRanges = (ranges: IncomeRange[]) => {
+    // 소득기준구간 저장하기
+    localStorage.setItem("incomeRanges", JSON.stringify(ranges));
+  };
+
+  const handleInputChange = (index: number, field: string, value: string) => {
+    const updatedRanges = [...incomeRanges];
+    const numValue = "" ? 0 : parseInt(value.replace(/,/g, ""), 10);
+
+    if (field === "min") {
+      updatedRanges[index].min = numValue;
+    } else if (field === "max") {
+      updatedRanges[index].max = numValue;
+    } else if (field === "percentage") {
+      updatedRanges[index].percentage = numValue > 100 ? 100 : numValue;
+    }
+
+    setIncomeRanges(updatedRanges);
+    saveIncomeRanges(updatedRanges);
+  };
+
+  return { incomeRanges, addIncomeRange, deleteIncomeRange, handleInputChange };
+};
+
+const formatNumberWithCommas = (value: number) => {
+  // 숫자 형식이 아닌 경우 빈 문자열 반환
+  if (isNaN(value)) return "";
+  return value.toLocaleString();
+};
+
 export default function MainPage() {
   const [accumulatedData, setAccumulatedData] = useState<unknown[]>([]); // 누적 데이터를 저장
   const [totalSum, setTotalSum] = useState(0); // 지급총액 합계 상태
   const [checkNeededCount, setCheckNeededCount] = useState(0); // "확인필요" 개수를 상태로 관리
   const [modifiedTotalSum, setModifiedTotalSum] = useState(0); // 수정 지급총액 합계 상태
   const [modifiedTotalNetProfitSum, setModifiedTotalNetProfitSum] = useState(0); // 수정 순이익 합계 상태
+  const { incomeRanges, addIncomeRange, deleteIncomeRange, handleInputChange } =
+    useIncomeRangeLocalStorage(); // 소득기준 구간 관리 상태
 
-  // 소득 기준 구간 상태 (추가)
-  const [incomeRange, setIncomeRange] = useState({
-    first: 0,
-    second: 0,
-    third: 0,
-    four: 0,
-  });
-
+  // 처음화면으로 이동
   const router = useRouter();
 
   const loginPage = async () => {
@@ -63,15 +133,21 @@ export default function MainPage() {
       const payment = row[" 지급총액 "] || 0; // 지급총액 필드값을 가져옴
       let percentage = 100; // 기본적으로 100%로 설정
 
-      // __EMPTY 필드가 "확인필요"인 경우 개수 증가
-      if (row["__EMPTY"] === "확인필요") {
+      // 비고에 "전액신고"가 있으면 무조건 100% 적용하고 구간 확인 건너뜀
+      if (row["비고"] && row["비고"].includes("전액신고")) {
+        percentage = 100;
+      } else if (row["비고"] && row["비고"] !== "전액신고") { 
+        // 비고에 "전액신고"가 아닌 다른 값이 있는 경우 확인필요 처리
         checkCount++;
-      } else if (
-        typeof row["__EMPTY"] === "string" &&
-        row["__EMPTY"].includes("%")
-      ) {
-        // __EMPTY 필드에 퍼센티지 값이 있을 때
-        percentage = parseFloat(row["__EMPTY"].replace("%", "")) || 100;
+        return acc;
+      } else {
+        // 소득 기준 구간에 따라 백분율 적용
+        for (const range of incomeRanges) {
+          if (payment >= range.min && payment <= range.max) {
+            percentage = range.percentage;
+            break; // 해당 구간을 찾으면 나옴
+          }
+        }
       }
 
       // 수정 지급총액 계산 (지급총액 * 퍼센티지 / 100)
@@ -310,176 +386,69 @@ export default function MainPage() {
           지급총액 합산 엑셀로 저장
         </button>
       </div>
+
       {/* 소득기준구간 산정하는 구문 */}
       <div className="relative overflow-x-auto">
-        <h1 className="font-bold m-3 text-xl">소득기준구간</h1>
-        <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+        <h1 className="font-bold m-3 text-xl">소득기준구간 설정</h1>
+        <button
+          className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold px-2 max-w-xs rounded-full focus:outline-none focus:shadow-outline"
+          onClick={addIncomeRange}
+        >
+          구간 추가
+        </button>
+        <table>
+          <thead>
+            <tr>
+              <th>구간</th>
+              <th>최소값</th>
+              <th>최대값</th>
+              <th>백분율</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr className="bg-white border dark:bg-gray-800 dark:border-gray-700">
-              <th
-                scope="row"
-                className="px-6 border font-medium text-gray-900 whitespace-nowrap dark:text-white"
-              >
-                1
-              </th>
-              <td className="">
-                <input className="text-center" type="number" />
-              </td>
-              <td className="px-6">~</td>
-              <td className="">
-                <input className="text-center" type="number" />
-              </td>
-              <td className="border">
-                <input
-                  className="text-center"
-                  type="number"
-                  max={100} // 최대값 100 설정
-                  onInput={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    const input = e.target as HTMLInputElement;
-                    let value = parseInt(input.value, 10);
-
-                    if (value > 100) {
-                      input.value = "100"; // 100을 초과하면 100으로 제한
-                    } else if (input.value.length > 3) {
-                      input.value = input.value.slice(0, 3); // 입력값이 3자리를 초과하면 잘라냄
+            {incomeRanges.map((range, index) => (
+              <tr key={index}>
+                <td className="text-center">{index + 1}</td>
+                <td>
+                  <input
+                    className="text-center"
+                    type="text"
+                    value={formatNumberWithCommas(range.min)}
+                    onChange={(e) =>
+                      handleInputChange(index, "min", e.target.value)
                     }
-                  }}
-                />
-                %
-              </td>
-            </tr>
-            <tr className="bg-white border dark:bg-gray-800 dark:border-gray-700">
-              <th
-                scope="row"
-                className="px-6 border font-medium text-gray-900 whitespace-nowrap dark:text-white"
-              >
-                2
-              </th>
-              <td className="">
-                <input className="text-center" type="number" />
-              </td>
-              <td className="px-6">~</td>
-              <td className="">
-                <input className="text-center" type="number" />
-              </td>
-              <td className="border">
-                <input
-                  className="text-center"
-                  type="number"
-                  max={100} // 최대값 100 설정
-                  onInput={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    const input = e.target as HTMLInputElement;
-                    let value = parseInt(input.value, 10);
-
-                    if (value > 100) {
-                      input.value = "100"; // 100을 초과하면 100으로 제한
-                    } else if (input.value.length > 3) {
-                      input.value = input.value.slice(0, 3); // 입력값이 3자리를 초과하면 잘라냄
+                  />
+                </td>
+                <td>
+                  <input
+                    className="text-center"
+                    type="text"
+                    value={formatNumberWithCommas(range.max)}
+                    onChange={(e) =>
+                      handleInputChange(index, "max", e.target.value)
                     }
-                  }}
-                />
-                %
-              </td>
-            </tr>
-            <tr className="bg-white border dark:bg-gray-800">
-              <th
-                scope="row"
-                className="px-6 border font-medium text-gray-900 whitespace-nowrap dark:text-white"
-              >
-                3
-              </th>
-              <td className="">
-                <input className="text-center" type="number" />
-              </td>
-              <td className="px-6">~</td>
-              <td className="">
-                <input className="text-center" type="number" />
-              </td>
-              <td className="border">
-                <input
-                  className="text-center"
-                  type="number"
-                  max={100} // 최대값 100 설정
-                  onInput={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    const input = e.target as HTMLInputElement;
-                    let value = parseInt(input.value, 10);
-
-                    if (value > 100) {
-                      input.value = "100"; // 100을 초과하면 100으로 제한
-                    } else if (input.value.length > 3) {
-                      input.value = input.value.slice(0, 3); // 입력값이 3자리를 초과하면 잘라냄
+                  />
+                </td>
+                <td>
+                  <input
+                    className="text-center"
+                    type="text"
+                    value={formatNumberWithCommas(range.percentage) + "%"}
+                    onChange={(e) =>
+                      handleInputChange(index, "percentage", e.target.value)
                     }
-                  }}
-                />
-                %
-              </td>
-            </tr>
-            <tr className="bg-white border dark:bg-gray-800">
-              <th
-                scope="row"
-                className="px-6 border font-medium text-gray-900 whitespace-nowrap dark:text-white"
-              >
-                4
-              </th>
-              <td className="">
-                <input className="text-center" type="number" />
-              </td>
-              <td className="px-6">~</td>
-              <td className="">
-                <input className="text-center" type="number" />
-              </td>
-              <td className="border">
-                <input
-                  className="text-center"
-                  type="number"
-                  max={100} // 최대값 100 설정
-                  onInput={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    const input = e.target as HTMLInputElement;
-                    let value = parseInt(input.value, 10);
-
-                    if (value > 100) {
-                      input.value = "100"; // 100을 초과하면 100으로 제한
-                    } else if (input.value.length > 3) {
-                      input.value = input.value.slice(0, 3); // 입력값이 3자리를 초과하면 잘라냄
-                    }
-                  }}
-                />
-                %
-              </td>
-            </tr>
-            <tr className="bg-white border dark:bg-gray-800">
-              <th
-                scope="row"
-                className="px-6 border font-medium text-gray-900 whitespace-nowrap dark:text-white"
-              >
-                5
-              </th>
-              <td className="">
-                <input className="text-center" type="number" />
-              </td>
-              <td className="px-6">~</td>
-              <td className="">
-                <input className="text-center" type="number" />
-              </td>
-              <td className="border">
-                <input
-                  className="text-center"
-                  type="number"
-                  max={100} // 최대값 100 설정
-                  onInput={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    const input = e.target as HTMLInputElement;
-                    let value = parseInt(input.value, 10);
-
-                    if (value > 100) {
-                      input.value = "100"; // 100을 초과하면 100으로 제한
-                    } else if (input.value.length > 3) {
-                      input.value = input.value.slice(0, 3); // 입력값이 3자리를 초과하면 잘라냄
-                    }
-                  }}
-                />
-                %
-              </td>
-            </tr>
+                  />
+                </td>
+                <td>
+                  <button
+                    className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold px-2 max-w-xs rounded-full focus:outline-none focus:shadow-outline"
+                    onClick={() => deleteIncomeRange(index)}
+                  >
+                    X
+                  </button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
