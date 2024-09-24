@@ -136,7 +136,10 @@ export default function MainPage() {
       // 비고에 "전액신고"가 있으면 무조건 100% 적용하고 구간 확인 건너뜀
       if (row["비고"] && row["비고"].includes("전액신고")) {
         percentage = 100;
-      } else if (row["비고"] && row["비고"] !== "전액신고") { 
+      } else if (
+        (row["비고"] && row["비고"] !== "전액신고") ||
+        row["비고"] !== "전액 신고"
+      ) {
         // 비고에 "전액신고"가 아닌 다른 값이 있는 경우 확인필요 처리
         checkCount++;
         return acc;

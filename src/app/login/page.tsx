@@ -8,9 +8,14 @@ export default function LoginPage() {
   const router = useRouter();
 
   const handleLogin = async () => {
-      // 로그인 요청 보내기
+      // 한부장님 요청건 페이지 이동
         router.push('/main'); // 로그인 성공 시 메인 페이지로 이동
   };
+
+  const withHoldingTax = async () => { 
+    // 안부장님 요청건 페이지 이동
+        router.push('/withholding');
+  }
 
   return (
     <div className="flex h-screen">
@@ -29,10 +34,16 @@ export default function LoginPage() {
         <h1 className="text-3xl font-bold mb-10 text-orange-500">엑셀 계산 프로그램</h1>
 
         <button
-          className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold py-2 px-4 w-full max-w-xs rounded-full focus:outline-none focus:shadow-outline"
+          className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold py-2 px-4 w-full max-w-xs rounded-full focus:outline-none focus:shadow-outline mb-4"
           onClick={handleLogin}
         >
           원천세 징수 계산 페이지 이동
+        </button>
+        <button
+          className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold py-2 px-4 w-full max-w-xs rounded-full focus:outline-none focus:shadow-outline"
+          onClick={withHoldingTax}
+        >
+          근무 날짜 계산 페이지 이동
         </button>
       </div>
     </div>
