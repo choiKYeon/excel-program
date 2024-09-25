@@ -9,7 +9,7 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
       // 한부장님 요청건 페이지 이동
-        router.push('/main'); // 로그인 성공 시 메인 페이지로 이동
+        router.push('/mains'); // 로그인 성공 시 메인 페이지로 이동
   };
 
   const withHoldingTax = async () => { 

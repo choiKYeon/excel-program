@@ -1,7 +1,8 @@
 // main.js
 const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
-
+const exec = require("child_process").exec;
+// const isDev = require("electron-is-dev");
 // electron-is-dev 모듈을 동적 import로 가져오기
 const isDev = import("electron-is-dev").then((module) => module.default);
 
@@ -20,6 +21,10 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+
+  // 세션 데이터와 캐시를 초기화
+  mainWindow.webContents.session.clearCache();
+  mainWindow.webContents.session.clearStorageData();
 
  // 개발 모드와 프로덕션 모드에 따라 URL 설정
  const startUrl = isDev

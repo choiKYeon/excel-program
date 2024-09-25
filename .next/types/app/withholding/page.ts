@@ -1,4 +1,4 @@
-// File: /Users/choegyeonghyeon/Desktop/Excel-calculation-program/excel-program/src/app/withholding/page.tsx
+// File: C:\Users\A\Desktop\excel-program\src\app\withholding\page.tsx
 import * as entry from '../../../../src/app/withholding/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

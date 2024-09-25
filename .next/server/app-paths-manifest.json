@@ -1,5 +1,8 @@
 {
-  "/withholding/page": "app/withholding/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/login/page": "app/login/page.js",
+  "/mains/page": "app/mains/page.js",
   "/page": "app/page.js",
-  "/login/page": "app/login/page.js"
+  "/withholding/page": "app/withholding/page.js"
 }
