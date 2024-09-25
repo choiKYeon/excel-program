@@ -49,14 +49,3 @@ app.on("activate", () => {
   }
 });
 
-ipcMain.on("login-success", () => {
-  if (mainWindow) {
-    isDev.then((dev) => {
-      mainWindow.loadURL(
-        dev
-          ? "http://localhost:3000/main"
-          : `file://${path.join(__dirname, "../renderer/out/main.html")}`
-      );
-    });
-  }
-});
