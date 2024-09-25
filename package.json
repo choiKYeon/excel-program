@@ -1,16 +1,33 @@
 {
-  "name": "my-next-electron-app",
+  "name": "callgo-excel",
   "version": "0.1.0",
   "private": true,
   "main": "src/main/main.js",
   "scripts": {
     "dev": "next dev",
-    "build": "next build && next export",
+    "build": "next build",
+    "build:win64": "electron-builder --win --x64",
     "start": "next start",
     "electron": "electron src/main/main.js",
     "electron-dev": "wait-on http://localhost:3000 && electron src/main/main.js",
-    "start:electron": "concurrently \"npm run dev\" \"npm run electron-dev\"",
-    "generate:api": "orval --config orval.config.ts"
+    "start:electron": "concurrently \"npm run start\" \"npm run electron-dev\""
+  },
+  "build": {
+    "appId": "com.yourapp.id",
+    "productName": "callgoExcel",
+    "files": [
+      "src/main/**/*",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/callgo.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "@tanstack/react-query": "^5.54.1",

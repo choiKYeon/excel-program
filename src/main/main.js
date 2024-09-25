@@ -21,31 +21,40 @@ function createWindow() {
     },
   });
 
-  // 개발 모드와 프로덕션 모드에 따라 URL 설정
-  isDev.then((dev) => {
-    mainWindow.loadURL(
-      dev
-        ? "http://localhost:3000/login"
-        : `file://${path.join(__dirname, "../renderer/out/login.html")}`
-    );
-  });
+ // 개발 모드와 프로덕션 모드에 따라 URL 설정
+ const startUrl = isDev
+ ? "http://localhost:3000/login"  // 개발 모드: 로컬 서버
+ : "http://localhost:3000/login"; // 프로덕션 모드: 동적 Next.js 서버 사용
 
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
+// 프로덕션 모드에서 Next.js 서버 실행
+if (!isDev) {
+ exec("npm run start:electron", (err, stdout, stderr) => {
+   if (err) {
+     console.error(`로컬 서버 실행 오류: ${stderr}`);
+     return;
+   }
+   console.log(stdout);
+   mainWindow.loadURL(startUrl);
+ });
+} else {
+ mainWindow.loadURL(startUrl);
+}
+
+mainWindow.on("closed", () => {
+ mainWindow = null;
+});
 }
 
 app.on("ready", createWindow);
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+if (process.platform !== "darwin") {
+ app.quit();
+}
 });
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
+if (BrowserWindow.getAllWindows().length === 0) {
+ createWindow();
+}
 });
-
