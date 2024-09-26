@@ -233,6 +233,16 @@ export default function MainPage() {
     // 행 추가
     worksheet.addRows(accumulatedData);
 
+    // 전체 행의 높이 설정
+    worksheet.eachRow((row) => {
+      row.height = 20; // 모든 행의 높이를 25로 설정 (값은 원하는 크기로 변경 가능)
+
+      // 각 셀에 대해 폰트 크기를 13으로 설정
+      row.eachCell((cell) => {
+        cell.font = { size: 12 }; // 폰트 크기를 13으로 설정
+      });
+    });
+
     // 첫 번째 행(헤더) 스타일 설정
     const headerRow = worksheet.getRow(1);
     headerRow.eachCell((cell) => {
@@ -256,7 +266,7 @@ export default function MainPage() {
       const blob = new Blob([buffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      saveAs(blob, "ModifiedPayments.xlsx");
+      saveAs(blob, "원천세계산.xlsx");
     });
   };
 
