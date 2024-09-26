@@ -16,9 +16,7 @@ const useIncomeRangeLocalStorage = () => {
   const defaultRanges: IncomeRange[] = [
     { min: 0, max: 999999, percentage: 100 },
     { min: 1000000, max: 2999999, percentage: 80 },
-    { min: 0, max: 0, percentage: 70 },
-    { min: 0, max: 0, percentage: 60 },
-    { min: 0, max: 0, percentage: 50 },
+    { min: 3000000, max: 3999999, percentage: 70 },
   ];
 
   const [incomeRanges, setIncomeRanges] =
@@ -118,6 +116,8 @@ export default function MainPage() {
           // 데이터를 누적시킴
           setAccumulatedData((prevData) => [...prevData, ...data]);
 
+          setAccumulatedData(data);
+
           // 지급총액 합산 및 수정 지급총액 계산
           calculateTotalSum(data);
 
@@ -153,6 +153,7 @@ export default function MainPage() {
       ) {
         // 비고에 "전액신고"가 아닌 다른 값이 있는 경우 확인필요 처리
         checkCount++;
+        row["수정지급총액"] = "확인필요";
         return acc;
       } else {
         // 소득 기준 구간에 따라 백분율 적용
@@ -168,6 +169,12 @@ export default function MainPage() {
       const modifiedPayment = (payment * percentage) / 100;
       modifiedSum += modifiedPayment;
 
+      // 백분율을 행에 저장
+      row["백분율"] = percentage;
+
+      // 수정 지급총액을 행에 저장
+      row["수정지급총액"] = modifiedPayment;
+
       return acc + payment;
     }, 0);
 
@@ -181,171 +188,72 @@ export default function MainPage() {
     ); // 수정 순이익총액 합계 상태에 저장
   };
 
-  // 지급총액 합산만 엑셀 파일로 저장하는 함수
-  const saveToExcel = async () => {
-    if (totalSum === 0) return; // 지급총액 합산이 없으면 리턴
-
+  const saveToExcel = () => {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Summary");
+    const worksheet = workbook.addWorksheet("Modified Payments");
 
-    // 지급총액 합산 데이터를 추가
-    worksheet.addRow([
-      "확인필요",
-      "지급총액",
-      "수정 지급총액",
-      "수정 순이익총액",
-    ]);
-
-    worksheet.addRow([
-      checkNeededCount,
-      totalSum.toLocaleString(),
-      modifiedTotalSum.toLocaleString(),
-      modifiedTotalNetProfitSum.toLocaleString(),
-    ]);
-
-    // 열 너비 설정
     worksheet.columns = [
-      { width: 50 },
-      { width: 50 },
-      { width: 50 },
-      { width: 50 },
-    ]; // 첫 번째 열의 너비 설정
+      { header: "순번", key: "순번", width: 10 },
+      { header: "소속", key: "소속", width: 32 },
+      { header: "기사닉네임", key: "기사닉네임", width: 15 },
+      { header: "기사관리메모", key: "기사관리메모", width: 20 },
+      { header: "기사실명", key: "기사실명", width: 15 },
+      { header: "기사주민번호", key: "기사주민번호", width: 20 },
+      { header: "건수", key: "건수", width: 10 },
+      {
+        header: "배달료합",
+        key: " 배달료합 ",
+        width: 15,
+        style: { numFmt: "#,##0" },
+      },
+      { header: "기준일자", key: "기준일자", width: 15 },
+      {
+        header: "지급총액",
+        key: " 지급총액 ",
+        width: 15,
+        style: { numFmt: "#,##0" },
+      },
+      { header: "비고", key: "비고", width: 25 },
+      {
+        header: "백분율",
+        key: "백분율",
+        width: 10,
+      },
+      {
+        header: "수정 지급총액",
+        key: "수정지급총액",
+        width: 20,
+        style: { numFmt: "#,##0" },
+      },
+    ];
+    // 행 추가
+    worksheet.addRows(accumulatedData);
 
-    // 첫 번째 행 스타일 설정
-    worksheet.getCell("A1").font = {
-      name: "Arial", // 폰트 종류
-      size: 20, // 폰트 크기
-      bold: true, // 두께 설정
-    };
-    worksheet.getCell("A1").alignment = {
-      vertical: "middle",
-      horizontal: "center",
-    }; // 가운데 정렬
-
-    // 첫 번째 행의 배경색을 연한 주황색으로 설정
-    worksheet.getCell("A1").fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFFFE0B2" }, // 연한 주황색 (ARGB 코드)
-    };
-
-    // 두 번째 열 스타일 설정
-    worksheet.getCell("B1").font = {
-      name: "Arial", // 폰트 종류
-      size: 20, // 폰트 크기
-      bold: true, // 두께 설정
-    };
-    worksheet.getCell("B1").alignment = {
-      vertical: "middle",
-      horizontal: "center",
-    }; // 가운데 정렬
-
-    // 두 번째 열의 배경색을 연한 주황색으로 설정
-    worksheet.getCell("B1").fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFFFE0B2" }, // 연한 주황색 (ARGB 코드)
-    };
-
-    // 세 번째 열 스타일 설정
-    worksheet.getCell("C1").font = {
-      name: "Arial", // 폰트 종류
-      size: 20, // 폰트 크기
-      bold: true, // 두께 설정
-    };
-
-    worksheet.getCell("C1").alignment = {
-      vertical: "middle",
-      horizontal: "center",
-    }; // 가운데 정렬
-
-    // 세 번째 열의 배경색을 연한 주황색으로 설정
-    worksheet.getCell("C1").fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFFFE0B2" }, // 연한 주황색 (ARGB 코드)
-    };
-
-    // 네 번째 열 스타일 설정
-    worksheet.getCell("D1").font = {
-      name: "Arial", // 폰트 종류
-      size: 20, // 폰트 크기
-      bold: true, // 두께 설정
-    };
-
-    worksheet.getCell("D1").alignment = {
-      vertical: "middle",
-      horizontal: "center",
-    }; // 가운데 정렬
-
-    // 네 번째 열의 배경색을 연한 주황색으로 설정
-    worksheet.getCell("D1").fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFFFE0B2" }, // 연한 주황색 (ARGB 코드)
-    };
-
-    // 첫 번째 행,열 스타일 설정
-    worksheet.getCell("A2").font = {
-      name: "Arial", // 폰트 종류
-      size: 25, // 폰트 크기
-      bold: true, // 두께 설정
-      color: { argb: "FFFF0000" }, // 글씨 색상 빨간색 (ARGB 코드)
-    };
-
-    worksheet.getCell("A2").alignment = {
-      vertical: "middle",
-      horizontal: "center",
-    }; // 가운데 정렬
-
-    // 두 번째 행,열 스타일 설정
-    worksheet.getCell("B2").font = {
-      name: "Arial", // 폰트 종류
-      size: 25, // 폰트 크기
-      bold: true, // 두께 설정
-    };
-
-    worksheet.getCell("B2").alignment = {
-      vertical: "middle",
-      horizontal: "center",
-    }; // 가운데 정렬
-
-    // 세 번째 행,열 스타일 설정
-    worksheet.getCell("C2").font = {
-      name: "Arial", // 폰트 종류
-      size: 25, // 폰트 크기
-      bold: true, // 두께 설정
-      color: { argb: "FFFF0000" }, // 글씨 색상 빨간색 (ARGB 코드)
-    };
-
-    worksheet.getCell("C2").alignment = {
-      vertical: "middle",
-      horizontal: "center",
-    }; // 가운데 정렬
-
-    // 네 번째 행,열 스타일 설정
-    worksheet.getCell("D2").font = {
-      name: "Arial", // 폰트 종류
-      size: 25, // 폰트 크기
-      bold: true, // 두께 설정
-      color: { argb: "FFFF0000" }, // 글씨 색상 빨간색 (ARGB 코드)
-    };
-
-    worksheet.getCell("D2").alignment = {
-      vertical: "middle",
-      horizontal: "center",
-    }; // 가운데 정렬
-
-    // 행 높이 설정
-    worksheet.getRow(1).height = 30; // 첫 번째 행의 높이를 30으로 설정
-    worksheet.getRow(2).height = 40; // 두 번째 행의 높이를 40으로 설정
-
-    // 엑셀 파일을 Blob으로 저장
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    // 첫 번째 행(헤더) 스타일 설정
+    const headerRow = worksheet.getRow(1);
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true }; // 폰트 두껍게
+      cell.alignment = {
+        vertical: "middle",
+        horizontal: "center",
+        wrapText: true,
+      }; // 중앙정렬 및 텍스트 줄바꿈
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "D3D3D3" }, // 연한 회색 배경
+      };
     });
-    saveAs(blob, "total-sum.xlsx"); // 엑셀 파일 다운로드
+
+    // 첫 번째 행 고정(freeze panes)
+    worksheet.views = [{ state: "frozen", ySplit: 1 }]; // 1행 고정
+
+    workbook.xlsx.writeBuffer().then((buffer) => {
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      saveAs(blob, "ModifiedPayments.xlsx");
+    });
   };
 
   return (
