@@ -89,6 +89,9 @@ export default function MainPage() {
   const { incomeRanges, addIncomeRange, deleteIncomeRange, handleInputChange } =
     useIncomeRangeLocalStorage(); // 소득기준 구간 관리 상태
 
+  const [sheetData, setSheetData] = useState<any[][]>([]); // 배열 형태의 시트 데이터 저장
+  const [headers, setHeaders] = useState<string[]>([]); // 첫 번째 행(헤더) 저장
+
   // 처음화면으로 이동
   const router = useRouter();
 
@@ -117,13 +120,34 @@ export default function MainPage() {
           const worksheet = workbook.Sheets[sheetName];
           const data = XLSX.utils.sheet_to_json(worksheet);
 
-          // 데이터를 누적시킴
-          setAccumulatedData((prevData) => [...prevData, ...data]);
+          // 시트 데이터를 배열로 변환 (header 옵션 제거해서 배열 형태로 출력)
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+            header: 1,
+            defval: "",
+          }) as any[][];
 
-          setAccumulatedData(data);
+          // 첫 번째 행을 헤더로 저장
+          if (jsonData.length > 0) {
+            if (headers.length === 0) {
+              // 첫 번째 파일에서만 헤더를 설정
+              setHeaders([...jsonData[0], "백분율", "수정지급총액"]);
+            } else {
+              // 다른 파일과 헤더가 같은지 확인
+              const currentHeaders = [...jsonData[0], "백분율", "수정지급총액"];
+              if (JSON.stringify(currentHeaders) !== JSON.stringify(headers)) {
+                alert("모든 파일의 열 구조가 동일해야 합니다.");
+                return;
+              }
+            }
 
-          // 지급총액 합산 및 수정 지급총액 계산
-          calculateTotalSum(data);
+            // 새로운 데이터를 누적
+            const newData = jsonData.slice(1); // 첫 번째 행은 헤더이므로 제외하고 데이터만 추출
+            setSheetData((prevData) => [...prevData, ...newData]); // 누적된 시트 데이터 저장
+            setAccumulatedData((prevData) => [...prevData, ...data]); // 누적된 데이터 저장
+
+            // 지급총액 합산 및 수정 지급총액 계산
+            calculateTotalSum(data);
+          }
 
           resolve(data); // Promise 완료
         };
@@ -183,6 +207,7 @@ export default function MainPage() {
     }, 0);
 
     // 상태 업데이트 (비동기적이므로 누적된 값은 이전 값을 고려해서 설정해야 함)
+    setSheetData(data)
     setTotalSum((prevSum) => prevSum + sum);
     setModifiedTotalSum(Math.floor(modifiedSum)); // 수정 지급총액 합계 상태에 저장
     setCheckNeededCount((prevCount) => prevCount + checkCount); // "확인필요" 개수를 상태에 저장
@@ -194,52 +219,28 @@ export default function MainPage() {
 
   const saveToExcel = () => {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Modified Payments");
+    const worksheet = workbook.addWorksheet("Sheet1");
 
-    worksheet.columns = [
-      { header: "순번", key: "순번", width: 10 },
-      { header: "소속", key: "소속", width: 32 },
-      { header: "기사닉네임", key: "기사닉네임", width: 15 },
-      { header: "기사관리메모", key: "기사관리메모", width: 20 },
-      { header: "기사실명", key: "기사실명", width: 15 },
-      { header: "기사주민번호", key: "기사주민번호", width: 20 },
-      { header: "건수", key: "건수", width: 10, style: { numFmt: "#,##0" } },
-      {
-        header: "배달료합",
-        key: " 배달료합 ",
-        width: 15,
-        style: { numFmt: "#,##0" },
-      },
-      { header: "기준일자", key: "기준일자", width: 15 },
-      {
-        header: "지급총액",
-        key: " 지급총액 ",
-        width: 15,
-        style: { numFmt: "#,##0" },
-      },
-      { header: "비고", key: "비고", width: 25 },
-      {
-        header: "백분율",
-        key: "백분율",
-        width: 10,
-      },
-      {
-        header: "수정 지급총액",
-        key: "수정지급총액",
-        width: 20,
-        style: { numFmt: "#,##0" },
-      },
-    ];
-    // 행 추가
-    worksheet.addRows(accumulatedData);
+    // 열 너비 설정
+    worksheet.columns = headers.map((header) => ({
+      header,
+      key: header,
+      width: 20, // 각 열의 기본 너비를 20으로 설정 (원하는 값으로 조정 가능)
+      style: header === "지급총액" || header === "수정지급총액" || header === "건수" || header === "배달료합" ? { numFmt: "#,##0" } : {}, // 숫자 형식 지정
+    }));
+
+    // 시트 데이터 추가
+    sheetData.forEach((row) => {
+      worksheet.addRow(row);
+    });
 
     // 전체 행의 높이 설정
     worksheet.eachRow((row) => {
-      row.height = 20; // 모든 행의 높이를 25로 설정 (값은 원하는 크기로 변경 가능)
+      row.height = 20; // 모든 행의 높이를 20로 설정 (값은 원하는 크기로 변경 가능)
 
-      // 각 셀에 대해 폰트 크기를 13으로 설정
+      // 각 셀에 대해 폰트 크기를 12으로 설정
       row.eachCell((cell) => {
-        cell.font = { size: 12 }; // 폰트 크기를 13으로 설정
+        cell.font = { size: 12 }; // 폰트 크기를 12으로 설정
       });
     });
 
