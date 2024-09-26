@@ -81,6 +81,7 @@ const formatNumberWithCommas = (value: number) => {
 
 export default function MainPage() {
   const [accumulatedData, setAccumulatedData] = useState<unknown[]>([]); // 누적 데이터를 저장
+  const [fileList, setFileList] = useState<File[]>([]); // 업로드된 파일 리스트 저장
   const [totalSum, setTotalSum] = useState(0); // 지급총액 합계 상태
   const [checkNeededCount, setCheckNeededCount] = useState(0); // "확인필요" 개수를 상태로 관리
   const [modifiedTotalSum, setModifiedTotalSum] = useState(0); // 수정 지급총액 합계 상태
@@ -99,6 +100,9 @@ export default function MainPage() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
+
+    // 파일 리스트 업데이트
+    setFileList(Array.from(files));
 
     const promises = Array.from(files).map((file) => {
       return new Promise((resolve) => {
@@ -199,7 +203,7 @@ export default function MainPage() {
       { header: "기사관리메모", key: "기사관리메모", width: 20 },
       { header: "기사실명", key: "기사실명", width: 15 },
       { header: "기사주민번호", key: "기사주민번호", width: 20 },
-      { header: "건수", key: "건수", width: 10 },
+      { header: "건수", key: "건수", width: 10, style: { numFmt: "#,##0" } },
       {
         header: "배달료합",
         key: " 배달료합 ",
@@ -308,6 +312,19 @@ export default function MainPage() {
             </tr>
           </tbody>
         </table>
+        {/* 업로드된 파일 목록 표시 */}
+        {fileList.length > 0 && (
+          <div className="my-4">
+            <h2 className="font-bold text-lg">업로드된 파일 목록:</h2>
+            <ul className="list-disc pl-5">
+              {fileList.map((file, index) => (
+                <li key={index} className="text-sm text-gray-700">
+                  {file.name}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <button
           onClick={saveToExcel}
           className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold py-2 px-4 w-full max-w-xs rounded-full focus:outline-none focus:shadow-outline"
