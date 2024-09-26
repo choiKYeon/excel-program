@@ -14,8 +14,8 @@ interface IncomeRange {
 
 const useIncomeRangeLocalStorage = () => {
   const defaultRanges: IncomeRange[] = [
-    { min: 0, max: 0, percentage: 100 },
-    { min: 0, max: 0, percentage: 80 },
+    { min: 0, max: 999999, percentage: 100 },
+    { min: 1000000, max: 2999999, percentage: 80 },
     { min: 0, max: 0, percentage: 70 },
     { min: 0, max: 0, percentage: 60 },
     { min: 0, max: 0, percentage: 50 },
@@ -99,29 +99,38 @@ export default function MainPage() {
 
   // 엑셀 파일을 읽는 함수
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files) return;
 
-    const reader = new FileReader();
+    const promises = Array.from(files).map((file) => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
 
-    reader.onload = (event) => {
-      const binaryStr = event.target?.result as string;
-      const workbook = XLSX.read(binaryStr, { type: "binary" });
+        reader.onload = (event) => {
+          const binaryStr = event.target?.result as string;
+          const workbook = XLSX.read(binaryStr, { type: "binary" });
 
-      // 첫 번째 시트 읽기
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(worksheet);
+          // 첫 번째 시트 읽기
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const data = XLSX.utils.sheet_to_json(worksheet);
 
-      // console.log(data); // 엑셀 데이터를 콘솔에 출력 (확인용)
-      // 데이터를 누적시킴
-      setAccumulatedData((prevData) => [...prevData, ...data]);
+          // 데이터를 누적시킴
+          setAccumulatedData((prevData) => [...prevData, ...data]);
 
-      // 지급총액 합산 및 수정 지급총액 계산
-      calculateTotalSum(data);
-    };
+          // 지급총액 합산 및 수정 지급총액 계산
+          calculateTotalSum(data);
 
-    reader.readAsBinaryString(file);
+          resolve(data); // Promise 완료
+        };
+
+        reader.readAsBinaryString(file);
+      });
+    });
+
+    Promise.all(promises).then(() => {
+      // 모든 파일 처리 후 추가 작업이 필요하다면 여기에 작성
+    });
   };
 
   // 엑셀 데이터를 계산하는 함수
@@ -137,7 +146,9 @@ export default function MainPage() {
       if (row["비고"] && row["비고"].includes("전액신고")) {
         percentage = 100;
       } else if (
-        (row["비고"] && row["비고"] !== "전액신고") ||
+        row["비고"] &&
+        row["비고"].trim() !== "" &&
+        row["비고"] !== "전액신고" &&
         row["비고"] !== "전액 신고"
       ) {
         // 비고에 "전액신고"가 아닌 다른 값이 있는 경우 확인필요 처리
@@ -347,7 +358,14 @@ export default function MainPage() {
           메인 페이지
         </button>
         <h1 className="font-bold m-3 text-xl">엑셀 파일 업로드 데이터 조회</h1>
-        <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} />
+
+        <input
+          type="file"
+          accept=".xlsx, .xls"
+          multiple
+          onChange={handleFileUpload}
+        />
+
         <table className="border-separate border border-slate-400 my-4">
           <thead>
             <tr>
