@@ -17,8 +17,14 @@
     "productName": "callgoExcel",
     "files": [
       "src/main/**/*",
-      "renderer/**/*",
-      "package.json"
+      "src/app/**/*",
+      "public/**/*",
+      "node_modules/**/*",
+      "package.json",
+      "!**/*.ts",
+      "!**/*.tsx",
+      "!**/*.js.map",
+      "!**/*.css.map"
     ],
     "win": {
       "target": "nsis",
