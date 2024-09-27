@@ -1,449 +1,61 @@
-"use client";
+'use client'; // 클라이언트 컴포넌트로 선언
 
-import React, { useState, useEffect } from "react";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
-import ExcelJS from "exceljs"; // exceljs 라이브러리 사용
-import { useRouter } from "next/navigation";
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import logo from '/public/logo.png'; // 로고 이미지 파일을 사용하려면 정확한 경로로 수정하세요.
 
-interface IncomeRange {
-  min: number;
-  max: number;
-  percentage: number;
-}
-
-const useIncomeRangeLocalStorage = () => {
-  const defaultRanges: IncomeRange[] = [
-    { min: 0, max: 999999, percentage: 100 },
-    { min: 1000000, max: 2999999, percentage: 80 },
-    { min: 3000000, max: 3999999, percentage: 70 },
-  ];
-
-  const [incomeRanges, setIncomeRanges] =
-    useState<IncomeRange[]>(defaultRanges);
-
-  useEffect(() => {
-    // 애플리케이션 시작 시 로컬스토리지에서 데이터 불러오기
-    const savedRanges = localStorage.getItem("incomeRanges");
-
-    if (savedRanges) {
-      console.log(localStorage.getItem("incomeRanges"));
-
-      setIncomeRanges(JSON.parse(savedRanges));
-    } else {
-      // 저장된 데이터가 없으면 기본값 사용
-      setIncomeRanges(defaultRanges);
-    }
-  }, []);
-
-  const addIncomeRange = () => {
-    const newRange: IncomeRange = { min: 0, max: 0, percentage: 0 };
-    const updatedRanges = [...incomeRanges, newRange];
-    setIncomeRanges(updatedRanges);
-    saveIncomeRanges(updatedRanges);
-  };
-
-  const deleteIncomeRange = (index: number) => {
-    const updatedRanges = incomeRanges.filter((_, i) => i !== index);
-    setIncomeRanges(updatedRanges);
-    saveIncomeRanges(updatedRanges);
-  };
-
-  const saveIncomeRanges = (ranges: IncomeRange[]) => {
-    // 소득기준구간 저장하기
-    localStorage.setItem("incomeRanges", JSON.stringify(ranges));
-  };
-
-  const handleInputChange = (index: number, field: string, value: string) => {
-    const updatedRanges = [...incomeRanges];
-    const numValue = "" ? 0 : parseInt(value.replace(/,/g, ""), 10);
-
-    if (field === "min") {
-      updatedRanges[index].min = numValue;
-    } else if (field === "max") {
-      updatedRanges[index].max = numValue;
-    } else if (field === "percentage") {
-      updatedRanges[index].percentage = numValue > 100 ? 100 : numValue;
-    }
-
-    setIncomeRanges(updatedRanges);
-    saveIncomeRanges(updatedRanges);
-  };
-
-  return { incomeRanges, addIncomeRange, deleteIncomeRange, handleInputChange };
-};
-
-const formatNumberWithCommas = (value: number) => {
-  // 숫자 형식이 아닌 경우 빈 문자열 반환
-  if (isNaN(value)) return "";
-  return value.toLocaleString();
-};
-
-export default function MainPage() {
-  const [accumulatedData, setAccumulatedData] = useState<unknown[]>([]); // 누적 데이터를 저장
-  const [fileList, setFileList] = useState<File[]>([]); // 업로드된 파일 리스트 저장
-  const [totalSum, setTotalSum] = useState(0); // 지급총액 합계 상태
-  const [checkNeededCount, setCheckNeededCount] = useState(0); // "확인필요" 개수를 상태로 관리
-  const [modifiedTotalSum, setModifiedTotalSum] = useState(0); // 수정 지급총액 합계 상태
-  const [modifiedTotalNetProfitSum, setModifiedTotalNetProfitSum] = useState(0); // 수정 순이익 합계 상태
-  const { incomeRanges, addIncomeRange, deleteIncomeRange, handleInputChange } =
-    useIncomeRangeLocalStorage(); // 소득기준 구간 관리 상태
-
-  const [sheetData, setSheetData] = useState<any[][]>([]); // 배열 형태의 시트 데이터 저장
-  const [headers, setHeaders] = useState<string[]>([]); // 첫 번째 행(헤더) 저장
-
-  // 처음화면으로 이동
+export default function LoginPage() {
   const router = useRouter();
 
-  const loginPage = async () => {
-    router.push("/login");
+  const handleLogin = async () => {
+      // 한부장님 요청건 페이지 이동
+        router.push('/mains'); // 로그인 성공 시 메인 페이지로 이동
   };
 
-  // 엑셀 파일을 읽는 함수
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
+  const withHoldingTax = async () => { 
+    // 안부장님 요청건 페이지 이동
+        router.push('/withholding');
+  }
 
-    // 파일 리스트 업데이트
-    setFileList(Array.from(files));
-
-    const promises = Array.from(files).map((file) => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-
-        reader.onload = (event) => {
-          const binaryStr = event.target?.result as string;
-          const workbook = XLSX.read(binaryStr, { type: "binary" });
-
-          // 첫 번째 시트 읽기
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-
-          // 시트 데이터를 배열로 변환 (header 옵션 제거해서 배열 형태로 출력)
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-            header: 1,
-            defval: "",
-          }) as any[][];
-
-          // 첫 번째 행을 헤더로 저장
-          if (jsonData.length > 0) {
-            if (headers.length === 0) {
-              // 첫 번째 파일에서만 헤더를 설정
-              setHeaders([...jsonData[0], "백분율", "수정지급총액"]);
-            } else {
-              // 다른 파일과 헤더가 같은지 확인
-              const currentHeaders = [...jsonData[0], "백분율", "수정지급총액"];
-              if (JSON.stringify(currentHeaders) !== JSON.stringify(headers)) {
-                alert("모든 파일의 열 구조가 동일해야 합니다.");
-                return;
-              }
-            }
-
-            // 첫 번째 행(헤더)을 키로 사용하여 각 행을 객체로 변환
-          const headersArray = jsonData[0]; // 첫 번째 행이 헤더
-
-          // 새로운 데이터를 객체로 변환 (열 이름을 키로 사용)
-          const newData = jsonData.slice(1).map((row) => {
-            const rowObject: any = {};
-            row.forEach((value: any, index: number) => {
-              rowObject[headersArray[index]] = value;
-            });
-            return rowObject;
-          });
-
-            const filteredNewData = newData.filter(
-              (newRow) =>
-                !sheetData.some(
-                  (existingRow) =>
-                    JSON.stringify(existingRow) === JSON.stringify(newRow)
-                )
-            );
-
-            // setSheetData((prevData) => [...prevData, ...filteredNewData]); // 중복되지 않은 데이터만 추가
-            setAccumulatedData((prevData) => [...prevData, ...filteredNewData]); // 누적된 데이터 저장
-
-            // 지급총액 합산 및 수정 지급총액 계산
-            calculateTotalSum(filteredNewData);
-          }
-
-          resolve(jsonData); // Promise 완료
-        };
-
-        reader.readAsBinaryString(file);
-      });
-    });
-
-    Promise.all(promises).then(() => {
-      // 모든 파일 처리 후 추가 작업이 필요하다면 여기에 작성
-    });
-  };
-
-  // 엑셀 데이터를 계산하는 함수
-  const calculateTotalSum = (data: any[]) => {
-    let checkCount = 0; // "확인필요" 개수를 저장할 변수
-    let modifiedSum = 0; // 수정 지급총액의 합계
-
-    const sum = data.reduce((acc, row) => {
-      const payment = row["지급총액"] || 0; // 지급총액 필드값을 가져옴
-      let percentage = 100; // 기본적으로 100%로 설정
-
-      // 비고에 "전액신고"가 있으면 무조건 100% 적용하고 구간 확인 건너뜀
-      if (row["비고"] && row["비고"].includes("전액신고")) {
-        percentage = 100;
-      } else if (
-        row["비고"] &&
-        row["비고"].trim() !== "" &&
-        row["비고"] !== "전액신고" &&
-        row["비고"] !== "전액 신고"
-      ) {
-        // 비고에 "전액신고"가 아닌 다른 값이 있는 경우 확인필요 처리
-        checkCount++;
-        row["수정지급총액"] = "확인필요";
-        return acc;
-      } else {
-        // 소득 기준 구간에 따라 백분율 적용
-        for (const range of incomeRanges) {
-          if (payment >= range.min && payment <= range.max) {
-            percentage = range.percentage;
-            break; // 해당 구간을 찾으면 나옴
-          }
-        }
-      }
-
-      // 수정 지급총액 계산 (지급총액 * 퍼센티지 / 100)
-      const modifiedPayment = (payment * percentage) / 100;
-      modifiedSum += modifiedPayment;
-
-      // 백분율을 행에 저장
-      row["백분율"] = percentage;
-
-      // 수정 지급총액을 행에 저장
-      row["수정지급총액"] = modifiedPayment;
-
-      return acc + payment;
-    }, 0);
-
-    // 상태 업데이트 (비동기적이므로 누적된 값은 이전 값을 고려해서 설정해야 함)
-    setSheetData((prevData) => [...prevData, ...data]);
-    setTotalSum((prevSum) => prevSum + sum);
-    setModifiedTotalSum(Math.floor(modifiedSum)); // 수정 지급총액 합계 상태에 저장
-    setCheckNeededCount((prevCount) => prevCount + checkCount); // "확인필요" 개수를 상태에 저장
-    setModifiedTotalNetProfitSum(
-      (prevTotalmodifiedTotalNetProfitSumum) =>
-        prevTotalmodifiedTotalNetProfitSumum + sum - Math.floor(modifiedSum)
-    ); // 수정 순이익총액 합계 상태에 저장
-  };
-
-  const saveToExcel = () => {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Sheet1");
-
-    // 열 너비 설정
-    worksheet.columns = headers.map((header) => ({
-      header,
-      key: header,
-      width: 20, // 각 열의 기본 너비를 20으로 설정 (원하는 값으로 조정 가능)
-      style:
-        header === "지급총액" ||
-        header === "수정지급총액" ||
-        header === "건수" ||
-        header === "배달료합"
-          ? { numFmt: "#,##0" }
-          : {}, // 숫자 형식 지정
-    }));
-
-    // 시트 데이터 추가
-    sheetData.forEach((row) => {
-      worksheet.addRow(row);
-    });
-
-    // 전체 행의 높이 설정
-    worksheet.eachRow((row) => {
-      row.height = 20; // 모든 행의 높이를 20로 설정 (값은 원하는 크기로 변경 가능)
-
-      // 각 셀에 대해 폰트 크기를 12으로 설정
-      row.eachCell((cell) => {
-        cell.font = { size: 12 }; // 폰트 크기를 12으로 설정
-      });
-    });
-
-    // 첫 번째 행(헤더) 스타일 설정
-    const headerRow = worksheet.getRow(1);
-    headerRow.eachCell((cell) => {
-      cell.font = { bold: true }; // 폰트 두껍게
-      cell.alignment = {
-        vertical: "middle",
-        horizontal: "center",
-        wrapText: true,
-      }; // 중앙정렬 및 텍스트 줄바꿈
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "D3D3D3" }, // 연한 회색 배경
-      };
-    });
-
-    // 첫 번째 행 고정(freeze panes)
-    worksheet.views = [{ state: "frozen", ySplit: 1 }]; // 1행 고정
-
-    workbook.xlsx.writeBuffer().then((buffer) => {
-      const blob = new Blob([buffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      saveAs(blob, "원천세계산.xlsx");
-    });
-  };
+  const withHoldingTaxTest = async () => { 
+    // 테스트 페이지 이동
+        router.push('/withholdingtest');
+  }
 
   return (
-    <div className="p-4 flex justify-between">
-      <div>
-        <button
-          className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold px-2 max-w-xs rounded-full focus:outline-none focus:shadow-outline"
-          onClick={loginPage}
-        >
-          메인 페이지
-        </button>
-        <h1 className="font-bold m-3 text-xl">엑셀 파일 업로드 데이터 조회</h1>
-
-        <input
-          type="file"
-          accept=".xlsx, .xls"
-          multiple
-          onChange={handleFileUpload}
+    <div className="flex h-screen">
+      {/* 왼쪽 로고 섹션 */}
+      <div className="flex-1 relative">
+        <Image
+          src={logo}
+          alt="Logo"
+          layout="fill"
+          objectFit="cover"
+          className="p-0"
         />
-
-        <table className="border-separate border border-slate-400 my-4">
-          <thead>
-            <tr>
-              <th className="border border-slate-300 p-4">항목</th>
-              <th className="border border-slate-300 p-4">총합</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="border border-slate-300 p-4 ">확인필요 개수</td>
-              <td className="border border-slate-300 p-4 text-red-500 font-semibold">
-                {checkNeededCount} 건
-              </td>
-            </tr>
-            <tr>
-              <td className="border border-slate-300 p-4">지급총액</td>
-              <td className="border border-slate-300 p-4 font-semibold">
-                {totalSum.toLocaleString()} 원
-              </td>
-            </tr>
-            <tr>
-              <td className="border border-slate-300 p-4">수정 지급총액</td>
-              <td className="border border-slate-300 p-4 font-semibold">
-                {modifiedTotalSum.toLocaleString()} 원
-              </td>
-            </tr>
-            <tr>
-              <td className="border border-slate-300 p-4">수정 순이익총액</td>
-              <td className="border border-slate-300 p-4 font-semibold">
-                {modifiedTotalNetProfitSum.toLocaleString()} 원
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        {/* 업로드된 파일 목록 표시 */}
-        {fileList.length > 0 && (
-          <div className="my-4">
-            <h2 className="font-bold text-lg">업로드된 파일 목록:</h2>
-            <ul className="list-disc pl-5">
-              {fileList.map((file, index) => (
-                <li key={index} className="text-sm text-gray-700">
-                  {file.name}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <button
-          onClick={saveToExcel}
-          className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold py-2 px-4 w-full max-w-xs rounded-full focus:outline-none focus:shadow-outline"
-        >
-          지급총액 합산 엑셀로 저장
-        </button>
-        <div className="my-4">
-          <h1 className="font-bold m-3 text-xl text-red-500">* 주의 *</h1>
-          <h2 className="font-bold m-3 text-lg text-red-500">
-            각각 다른 엑셀 파일을 등록하면 출력이 안됩니다.!
-          </h2>
-          <h2 className="font-bold m-3 text-lg text-red-500">
-            header명칭이 각각 다르면 안됩니다.!
-          </h2>
-          <h2 className="font-bold m-3 text-base">
-            ex 1번 엑셀 header : 순번 소속 기사닉네임 등.. 2번 엑셀 header :
-            소속 기사닉네임 순번 등..
-          </h2>
-        </div>
       </div>
 
-      {/* 소득기준구간 산정하는 구문 */}
-      <div className="relative overflow-x-auto">
-        <h1 className="font-bold m-3 text-xl">소득기준구간 설정</h1>
+      <div className="flex flex-col justify-center items-start bg-white w-full max-w-md"> {/* 수직 및 수평 중앙 정렬 */}
+        <h1 className="text-3xl font-bold mb-10 text-orange-500">엑셀 계산 프로그램</h1>
+
         <button
-          className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold px-2 max-w-xs rounded-full focus:outline-none focus:shadow-outline"
-          onClick={addIncomeRange}
+          className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold py-2 px-4 w-full max-w-xs rounded-full focus:outline-none focus:shadow-outline mb-4"
+          onClick={handleLogin}
         >
-          구간 추가
+          원천세 징수 계산 페이지 이동
         </button>
-        <table>
-          <thead>
-            <tr>
-              <th>구간</th>
-              <th>최소값</th>
-              <th>최대값</th>
-              <th>백분율</th>
-            </tr>
-          </thead>
-          <tbody>
-            {incomeRanges.map((range, index) => (
-              <tr key={index}>
-                <td className="text-center">{index + 1}</td>
-                <td>
-                  <input
-                    className="text-center"
-                    type="text"
-                    value={formatNumberWithCommas(range.min)}
-                    onChange={(e) =>
-                      handleInputChange(index, "min", e.target.value)
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    className="text-center"
-                    type="text"
-                    value={formatNumberWithCommas(range.max)}
-                    onChange={(e) =>
-                      handleInputChange(index, "max", e.target.value)
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    className="text-center"
-                    type="text"
-                    value={formatNumberWithCommas(range.percentage) + "%"}
-                    onChange={(e) =>
-                      handleInputChange(index, "percentage", e.target.value)
-                    }
-                  />
-                </td>
-                <td>
-                  <button
-                    className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold px-2 max-w-xs rounded-full focus:outline-none focus:shadow-outline"
-                    onClick={() => deleteIncomeRange(index)}
-                  >
-                    X
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <button
+          className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold py-2 px-4 w-full max-w-xs rounded-full focus:outline-none focus:shadow-outline mb-4"
+          onClick={withHoldingTax}
+        >
+          근무 날짜 계산 페이지 이동
+        </button>
+        <button
+          className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold py-2 px-4 w-full max-w-xs rounded-full focus:outline-none focus:shadow-outline"
+          onClick={withHoldingTaxTest}
+        >
+          원천세 테스트 페이지 이동
+        </button>
       </div>
     </div>
   );
