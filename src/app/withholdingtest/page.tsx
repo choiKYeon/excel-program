@@ -53,18 +53,27 @@ const useIncomeRangeLocalStorage = () => {
     },
   ];
 
-  const [incomeRanges, setIncomeRanges] =
-    useState<IncomeRange[]>(defaultRanges);
+  const [incomeRanges, setIncomeRanges] = useState<IncomeRange[]>(() => {
+    if (typeof window !== "undefined") {
+      const savedRanges = localStorage.getItem("incomeRanges");
+      return savedRanges ? JSON.parse(savedRanges) : defaultRanges;
+    } else {
+      return defaultRanges; // 서버에서는 기본 값으로 설정
+    }
+  });
 
   useEffect(() => {
     // 애플리케이션 시작 시 로컬스토리지에서 데이터 불러오기
     const savedRanges = localStorage.getItem("incomeRanges");
     if (savedRanges) {
       setIncomeRanges(JSON.parse(savedRanges));
-    } else {
-      setIncomeRanges(defaultRanges);
     }
   }, []);
+
+  // 소득 구간을 로컬 스토리지에 저장
+  const saveIncomeRangesToLocalStorage = (ranges: IncomeRange[]) => {
+    localStorage.setItem("incomeRanges", JSON.stringify(ranges));
+  };
 
   const addIncomeRange = () => {
     const newRange: IncomeRange = {
@@ -76,13 +85,13 @@ const useIncomeRangeLocalStorage = () => {
     };
     const updatedRanges = [...incomeRanges, newRange];
     setIncomeRanges(updatedRanges);
-    localStorage.setItem("incomeRanges", JSON.stringify(updatedRanges));
+    saveIncomeRangesToLocalStorage(updatedRanges);
   };
 
   const deleteIncomeRange = (index: number) => {
     const updatedRanges = incomeRanges.filter((_, i) => i !== index);
     setIncomeRanges(updatedRanges);
-    localStorage.setItem("incomeRanges", JSON.stringify(updatedRanges));
+    saveIncomeRangesToLocalStorage(updatedRanges);
   };
 
   const handleInputChange = (index: number, field: string, value: string) => {
@@ -93,16 +102,10 @@ const useIncomeRangeLocalStorage = () => {
       updatedRanges[index].min = numValue;
     } else if (field === "max") {
       updatedRanges[index].max = numValue;
-    } else if (field === "percentage") {
-      updatedRanges[index].percentage = numValue > 100 ? 100 : numValue;
-    } else if (field === "driverCount") {
-      updatedRanges[index].driverCount = numValue;
-    } else if (field === "individualAmount") {
-      updatedRanges[index].individualAmount = numValue;
     }
 
     setIncomeRanges(updatedRanges);
-    localStorage.setItem("incomeRanges", JSON.stringify(updatedRanges));
+    saveIncomeRangesToLocalStorage(updatedRanges);
   };
 
   return {
@@ -204,6 +207,9 @@ export default function MainPage() {
     });
 
     setIncomeRanges(updatedRanges);
+
+    // 로컬 스토리지에 저장
+    localStorage.setItem("incomeRanges", JSON.stringify(updatedRanges));
   };
 
   // 직접 입력해야 하는 값들
@@ -279,7 +285,6 @@ export default function MainPage() {
 
             // 첫 번째 행(헤더)을 키로 사용하여 각 행을 객체로 변환
             const headersArray = jsonData[0]; // 첫 번째 행이 헤더
-            const remarkIndex = headersArray.indexOf("비고"); // 비고 열의 인덱스 찾기
             const totalAmountIndex = headersArray.indexOf("지급총액");
 
             if (totalAmountIndex !== -1) {
@@ -375,13 +380,12 @@ export default function MainPage() {
         percentage = 100;
         const numericPart = remark.replace("만원", "").trim();
         modifiedTotalAmount = parseFloat(numericPart) * 10000; // ###0000 형식으로 변환
+      }
+      // 전액신고가 있는 경우
+      else if (remark.includes("전액신고") || remark.includes("전액 신고")) {
+        percentage = 100;
+        modifiedTotalAmount = amount;
       } else {
-        // 전액신고가 있는 경우
-        if (remark.includes("전액신고") || remark.includes("전액 신고")) {
-          percentage = 100;
-          modifiedTotalAmount = amount;
-        }
-
         // 범위 내에 있는지 검사
         let isInRange = false;
         incomeRanges.forEach((range) => {
