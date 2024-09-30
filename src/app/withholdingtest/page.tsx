@@ -14,7 +14,7 @@ interface IncomeRange {
   individualAmount: number;
 }
 
-const useIncomeRangeLocalStorage = () => {
+const useIncomeRangeLocalStorage = (difference : number) => {
   const defaultRanges: IncomeRange[] = [
     {
       min: 800001,
@@ -102,7 +102,37 @@ const useIncomeRangeLocalStorage = () => {
       updatedRanges[index].min = numValue;
     } else if (field === "max") {
       updatedRanges[index].max = numValue;
+    } else if (field === "percentage") {
+      updatedRanges[index].percentage = numValue; // 백분율 업데이트 추가
+
+      // 수정된 백분율 제외한 나머지 백분율 조정
+      const remainingPercentage = 100 - numValue;
+
+      // 나머지 구간의 기사수 총합
+      const totalDriversWithoutModified = updatedRanges
+        .filter((_, i) => i !== index)
+        .reduce((total, range) => total + range.driverCount, 0);
+
+      // 나머지 구간에 남은 백분율 분배
+      updatedRanges.forEach((range, i) => {
+        if (i !== index) {
+          const driverRatio = range.driverCount / totalDriversWithoutModified;
+          range.percentage = parseFloat(
+            (driverRatio * remainingPercentage).toFixed(2)
+          ); // 소수점 2자리까지
+        }
+      });
     }
+
+    // 각 구간의 1인 부담 금액 재계산
+    updatedRanges.forEach((range) => {
+      range.individualAmount =
+        range.driverCount > 0
+          ? Math.round(
+              (difference * (range.percentage / 100)) / range.driverCount
+            )
+          : 0;
+    });
 
     setIncomeRanges(updatedRanges);
     saveIncomeRangesToLocalStorage(updatedRanges);
@@ -132,14 +162,15 @@ export default function MainPage() {
   const [requestedNetProfit, setRequestedNetProfit] = useState<number | string>(
     ""
   ); // 요청순수익
+  const [difference, setDifference] = useState<number>(0);
+
   const {
     incomeRanges,
     addIncomeRange,
     deleteIncomeRange,
     handleInputChange,
     setIncomeRanges,
-  } = useIncomeRangeLocalStorage(); // 소득기준 구간 관리 상태
-  const [difference, setDifference] = useState<number>(0);
+  } = useIncomeRangeLocalStorage(difference); // 소득기준 구간 관리 상태
 
   useEffect(() => {
     const newDifference = calculateDifference(); // 차액 계산 함수 호출
@@ -360,7 +391,7 @@ export default function MainPage() {
     sheetData.forEach((row: any, rowIndex) => {
       const amount = parseFloat(row["지급총액"]);
       const remark = row["비고"];
-      let percentage: string | number = 0;
+      let percentage: string | number = row["백분율"]; // 이미 계산된 백분율 사용
       let individualAmount = 0;
       let modifiedTotalAmount = amount;
 
@@ -412,6 +443,7 @@ export default function MainPage() {
       // 수정된 지급총액과 백분율을 포함하여 새로운 행을 추가
       worksheet.addRow({
         ...row,
+        백분율: percentage,
         수정지급총액: modifiedTotalAmount, // 수정지급총액 열에 계산된 값 추가
       });
     });
@@ -657,9 +689,17 @@ export default function MainPage() {
                     className="text-center"
                     type="text"
                     value={formatNumberWithCommas(range.percentage) + "%"}
-                    onChange={(e) =>
-                      handleInputChange(index, "percentage", e.target.value)
-                    }
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, ""); // 숫자가 아닌 문자는 제거
+                      if (value.length <= 3) {
+                        // 최대 세 자리까지만 입력 허용
+                        handleInputChange(index, "percentage", value); // 백분율 값 업데이트
+                      } else {
+                        alert(
+                          "백분율은 최대 3자리 숫자까지만 입력 가능합니다."
+                        ); // 경고 메시지
+                      }
+                    }}
                   />
                 </td>
                 <td className="pr-4">
