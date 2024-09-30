@@ -12,9 +12,10 @@ interface IncomeRange {
   percentage: number;
   driverCount: number;
   individualAmount: number;
+  isLocked: boolean;
 }
 
-const useIncomeRangeLocalStorage = (difference : number) => {
+const useIncomeRangeLocalStorage = (difference: number) => {
   const defaultRanges: IncomeRange[] = [
     {
       min: 800001,
@@ -22,6 +23,7 @@ const useIncomeRangeLocalStorage = (difference : number) => {
       percentage: 0,
       driverCount: 0,
       individualAmount: 0,
+      isLocked: false,
     },
     {
       min: 900001,
@@ -29,6 +31,7 @@ const useIncomeRangeLocalStorage = (difference : number) => {
       percentage: 0,
       driverCount: 0,
       individualAmount: 0,
+      isLocked: false,
     },
     {
       min: 1000001,
@@ -36,6 +39,7 @@ const useIncomeRangeLocalStorage = (difference : number) => {
       percentage: 0,
       driverCount: 0,
       individualAmount: 0,
+      isLocked: false,
     },
     {
       min: 2000001,
@@ -43,6 +47,7 @@ const useIncomeRangeLocalStorage = (difference : number) => {
       percentage: 0,
       driverCount: 0,
       individualAmount: 0,
+      isLocked: false,
     },
     {
       min: 3000001,
@@ -50,6 +55,7 @@ const useIncomeRangeLocalStorage = (difference : number) => {
       percentage: 0,
       driverCount: 0,
       individualAmount: 0,
+      isLocked: false,
     },
   ];
 
@@ -61,6 +67,14 @@ const useIncomeRangeLocalStorage = (difference : number) => {
       return defaultRanges; // 서버에서는 기본 값으로 설정
     }
   });
+
+  // 백분율 고정/해제 함수
+  const toggleLock = (index: number) => {
+    const updatedRanges = [...incomeRanges];
+    updatedRanges[index].isLocked = !updatedRanges[index].isLocked;
+    setIncomeRanges(updatedRanges);
+    saveIncomeRangesToLocalStorage(updatedRanges); // 필요 시 로컬 스토리지 저장
+  };
 
   useEffect(() => {
     // 애플리케이션 시작 시 로컬스토리지에서 데이터 불러오기
@@ -82,6 +96,7 @@ const useIncomeRangeLocalStorage = (difference : number) => {
       percentage: 0,
       driverCount: 0,
       individualAmount: 0,
+      isLocked: false,
     };
     const updatedRanges = [...incomeRanges, newRange];
     setIncomeRanges(updatedRanges);
@@ -98,6 +113,11 @@ const useIncomeRangeLocalStorage = (difference : number) => {
     const updatedRanges = [...incomeRanges];
     const numValue = value === "" ? 0 : parseInt(value.replace(/,/g, ""), 10);
 
+    // 고정되지 않은 경우에만 값을 수정
+    if (field === "percentage" && updatedRanges[index].isLocked) {
+      return; // 고정된 백분율은 수정할 수 없음
+    }
+
     if (field === "min") {
       updatedRanges[index].min = numValue;
     } else if (field === "max") {
@@ -105,26 +125,32 @@ const useIncomeRangeLocalStorage = (difference : number) => {
     } else if (field === "percentage") {
       updatedRanges[index].percentage = numValue; // 백분율 업데이트 추가
 
-      // 수정된 백분율 제외한 나머지 백분율 조정
-      const remainingPercentage = 100 - numValue;
+      // 고정된 백분율의 총합 계산
+      const lockedPercentageSum = updatedRanges
+        .filter((range) => range.isLocked)
+        .reduce((sum, range) => sum + range.percentage, 0);
 
-      // 나머지 구간의 기사수 총합
+      // 남은 백분율 계산
+      const remainingPercentage = 100 - lockedPercentageSum - numValue;
+
+      // 고정되지 않은 구간들의 기사수 총합 계산
       const totalDriversWithoutModified = updatedRanges
-        .filter((_, i) => i !== index)
+        .filter((_, i) => i !== index && !updatedRanges[i].isLocked) // 수정된 구간과 고정된 구간 제외
         .reduce((total, range) => total + range.driverCount, 0);
 
-      // 나머지 구간에 남은 백분율 분배
+      // 나머지 구간에 남은 백분율 분배 (고정되지 않은 구간만)
       updatedRanges.forEach((range, i) => {
-        if (i !== index) {
+        if (!range.isLocked && i !== index) {
+          // 수정한 구간은 제외하고 고정되지 않은 구간만 조정
           const driverRatio = range.driverCount / totalDriversWithoutModified;
           range.percentage = parseFloat(
             (driverRatio * remainingPercentage).toFixed(2)
-          ); // 소수점 2자리까지
+          );
         }
       });
     }
 
-    // 각 구간의 1인 부담 금액 재계산
+    // 각 구간의 1인 부담 금액 재계산 (고정된 값도 포함)
     updatedRanges.forEach((range) => {
       range.individualAmount =
         range.driverCount > 0
@@ -143,6 +169,7 @@ const useIncomeRangeLocalStorage = (difference : number) => {
     addIncomeRange,
     deleteIncomeRange,
     handleInputChange,
+    toggleLock,
     setIncomeRanges,
   };
 };
@@ -170,6 +197,7 @@ export default function MainPage() {
     deleteIncomeRange,
     handleInputChange,
     setIncomeRanges,
+    toggleLock,
   } = useIncomeRangeLocalStorage(difference); // 소득기준 구간 관리 상태
 
   useEffect(() => {
@@ -388,7 +416,7 @@ export default function MainPage() {
     }));
 
     // 시트 데이터 추가
-    sheetData.forEach((row: any, rowIndex) => {
+    sheetData.forEach((row: any, _rowIndex) => {
       const amount = parseFloat(row["지급총액"]);
       const remark = row["비고"];
       let percentage: string | number = row["백분율"]; // 이미 계산된 백분율 사용
@@ -656,6 +684,7 @@ export default function MainPage() {
               <th>최소값</th>
               <th>최대값</th>
               <th>백분율</th>
+              <th>고정</th>
               <th>기사수</th>
               <th>1인부담금액</th>
             </tr>
@@ -688,7 +717,7 @@ export default function MainPage() {
                   <input
                     className="text-center"
                     type="text"
-                    value={formatNumberWithCommas(range.percentage) + "%"}
+                    value={formatNumberWithCommas(range.percentage)}
                     onChange={(e) => {
                       const value = e.target.value.replace(/[^0-9]/g, ""); // 숫자가 아닌 문자는 제거
                       if (value.length <= 3) {
@@ -700,7 +729,17 @@ export default function MainPage() {
                         ); // 경고 메시지
                       }
                     }}
+                    disabled={range.isLocked}
                   />
+                  <span>%</span>
+                </td>
+                <td>
+                  <button
+                    className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold px-2 max-w-xs rounded-full focus:outline-none focus:shadow-outline"
+                    onClick={() => toggleLock(index)}
+                  >
+                    {range.isLocked ? "해제" : "고정"}
+                  </button>
                 </td>
                 <td className="pr-4">
                   {formatNumberWithCommas(range.driverCount)} 명
