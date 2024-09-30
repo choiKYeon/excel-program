@@ -42,7 +42,7 @@ export default function LoginPage() {
           className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold py-2 px-4 w-full max-w-xs rounded-full focus:outline-none focus:shadow-outline mb-4"
           onClick={handleLogin}
         >
-          원천세 징수 계산 페이지 이동
+          원천세 징수 계산 테스트 페이지 이동
         </button>
         <button
           className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold py-2 px-4 w-full max-w-xs rounded-full focus:outline-none focus:shadow-outline mb-4"
@@ -54,7 +54,7 @@ export default function LoginPage() {
           className="bg-[#fff0dd] hover:bg-[#ffd29a] text-[#ffa027] border-2 border-[#ffa027] font-bold py-2 px-4 w-full max-w-xs rounded-full focus:outline-none focus:shadow-outline"
           onClick={withHoldingTaxTest}
         >
-          원천세 테스트 페이지 이동
+          원천세 계산 페이지 이동
         </button>
       </div>
     </div>
