@@ -11,6 +11,7 @@ export default function WithHoldingTaxPage() {
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // 선택한 월 저장
   const [fileList, setFileList] = useState<File[]>([]); // 업로드된 파일 리스트 저장
   const [allData, setAllData] = useState<any[]>([]); // 모든 파일의 데이터를 저장
+  const [fileName, setFileNames] = useState<string[]>([]); // 파일 이름 저장
 
   // 월 선택 핸들러
   const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -23,10 +24,12 @@ export default function WithHoldingTaxPage() {
     if (!files) return;
 
     // 파일 리스트 업데이트
-    setFileList(Array.from(files));
+    const fileArray = Array.from(files);
+    setFileList(fileArray);
+    setFileNames(fileArray.map((file) => file.name.split(".")[0]));
 
     // 각 파일 처리
-    Array.from(files).forEach((file) => {
+    fileArray.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (event) => {
         const binaryStr = event.target?.result as string;
@@ -142,11 +145,11 @@ export default function WithHoldingTaxPage() {
     }
 
     // riderDataMap의 데이터를 엑셀 시트에 추가
-    Object.keys(riderDataMap).forEach((riderName) => {
+    Object.keys(riderDataMap).forEach((riderName, index) => {
       const 신고월 = 신고월Map[riderName]; // 해당 라이더의 신고월 가져오기
       const newRow = worksheet.addRow([
         "", // 보험구분 칸 비우기
-        riderName, // 성명에 라이더 닉네임 출력
+        fileName[index], // 성명에 라이더 닉네임 출력
         "",
         신고월,
         "", // 주민등록번호, 신고월, 직종코드 칸 비우기
@@ -164,7 +167,7 @@ export default function WithHoldingTaxPage() {
       const blob = new Blob([buffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      saveAs(blob, "업무일자_출력.xlsx");
+      saveAs(blob, `${fileName}.xlsx`);
     });
   };
 
