@@ -10,7 +10,7 @@ export default function WithHoldingTaxPage() {
   const router = useRouter();
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // 선택한 월 저장
   const [fileList, setFileList] = useState<File[]>([]); // 업로드된 파일 리스트 저장
-  const [allData, setAllData] = useState<any[]>([]); // 모든 파일의 데이터를 저장
+  const [allData, setAllData] = useState<any[][]>([]); // 모든 파일의 데이터를 저장
   const [fileName, setFileNames] = useState<string[]>([]); // 파일 이름 저장
 
   // 월 선택 핸들러
@@ -19,7 +19,7 @@ export default function WithHoldingTaxPage() {
   };
 
   // 엑셀 파일을 처리하는 함수
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
@@ -28,25 +28,24 @@ export default function WithHoldingTaxPage() {
     setFileList(fileArray);
     setFileNames(fileArray.map((file) => file.name.split(".")[0]));
 
-    // 각 파일 처리
-    fileArray.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const binaryStr = event.target?.result as string;
-        const workbook = XLSX.read(binaryStr, { type: "binary" });
-
-        // 첫 번째 시트 읽기
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-
-        // 엑셀 데이터를 JSON 형식으로 변환
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-        // 기존 데이터에 추가
-        setAllData((prevData) => [...prevData, ...jsonData]);
-      };
-      reader.readAsBinaryString(file);
+    // 모든 파일 데이터를 비동기로 읽기
+    const dataPromises = fileArray.map((file) => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const binaryStr = event.target?.result as string;
+          const workbook = XLSX.read(binaryStr, { type: "binary" });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          resolve(jsonData);
+        };
+        reader.readAsBinaryString(file);
+      });
     });
+
+    const allFileData = await Promise.all(dataPromises);
+    setAllData(allFileData as any[][]); // 한 번에 상태 업데이트
   };
 
   // "업무일자"에서 "일"을 추출하고 "라이더 닉네임"을 포함한 새로운 엑셀 생성
@@ -110,50 +109,49 @@ export default function WithHoldingTaxPage() {
       { state: "frozen", ySplit: 1, xSplit: 4 }, // 1행을 고정
     ];
 
-    // 라이더 닉네임별로 데이터를 그룹화할 객체 생성
-    const riderDataMap: { [key: string]: (number | "")[] } = {};
+    // 파일명별로 데이터를 그룹화할 객체 생성
+    const fileDataMap: { [key: string]: (number | "")[] } = {};
     const 신고월Map: { [key: string]: string } = {};
 
-    // 데이터를 순회하며 처리
-    for (let i = 0; i < allData.length - 1; i++) {
-      const 업무일자셀 = allData[i].find(
-        (cell: any) => typeof cell === "string" && cell.startsWith("업무일자:")
-      );
-      const 닉네임셀 = allData[i + 1][allData[0].indexOf("라이더 닉네임")];
+    // 데이터를 파일별로 순회하며 처리
+    allData.forEach((fileData, fileIndex) => {
+      const currentFileName = fileName[fileIndex]; // 파일 이름에 해당하는 인덱스 가져오기
 
-      if (업무일자셀 && 닉네임셀) {
-        const 업무일자 = 업무일자셀.split("업무일자:")[1]?.trim();
-        const yearMonth = 업무일자.slice(0, 6); // YYYYMM 형식으로 추출
-        const month = parseInt(업무일자.slice(4, 6), 10); // 업무일자에서 월 추출
-        const day = parseInt(업무일자.slice(-2), 10); // 업무일자에서 마지막 두 자리 추출
-
-        // 선택한 월에 해당하는 데이터만 처리
-        if (
-          !isNaN(month) &&
-          month === selectedMonth &&
-          !isNaN(day) &&
-          day >= 1 &&
-          day <= 31
-        ) {
-          if (!riderDataMap[닉네임셀]) {
-            riderDataMap[닉네임셀] = new Array(31).fill(""); // 1일부터 31일까지의 빈 배열 생성
-            신고월Map[닉네임셀] = yearMonth;
-          }
-          riderDataMap[닉네임셀][day - 1] = 1; // 해당 날짜에 1 기록
-        }
+      // 현재 파일에 대한 데이터가 없으면 초기화
+      if (!fileDataMap[currentFileName]) {
+        fileDataMap[currentFileName] = new Array(31).fill("");
+        신고월Map[currentFileName] = ""; // 신고월 초기화
       }
-    }
+
+      fileData.forEach((rowData) => {
+        const 업무일자셀 = rowData.find(
+          (cell: string) => typeof cell === "string" && cell.startsWith("업무일자:")
+        );
+
+        if (업무일자셀) {
+          const 업무일자 = 업무일자셀.split("업무일자:")[1]?.trim();
+          const yearMonth = 업무일자.slice(0, 6);
+          const month = parseInt(업무일자.slice(4, 6), 10);
+          const day = parseInt(업무일자.slice(-2), 10);
+
+          if (!isNaN(month) && month === selectedMonth && !isNaN(day) && day >= 1 && day <= 31) {
+            fileDataMap[currentFileName][day - 1] = 1; // 해당 일자에 데이터 기록
+            신고월Map[currentFileName] = yearMonth; // 신고월 갱신
+          }
+        }
+      });
+    });
 
     // riderDataMap의 데이터를 엑셀 시트에 추가
-    Object.keys(riderDataMap).forEach((riderName, index) => {
-      const 신고월 = 신고월Map[riderName]; // 해당 라이더의 신고월 가져오기
+    Object.keys(fileDataMap).forEach((file) => {
+      const 신고월 = 신고월Map[file];
       const newRow = worksheet.addRow([
         "", // 보험구분 칸 비우기
-        fileName[index], // 성명에 라이더 닉네임 출력
+        file,
         "",
         신고월,
         "", // 주민등록번호, 신고월, 직종코드 칸 비우기
-        ...riderDataMap[riderName],
+        ...fileDataMap[file],
       ]);
 
       // 각 셀에 대해 텍스트 중앙정렬 설정
@@ -167,7 +165,7 @@ export default function WithHoldingTaxPage() {
       const blob = new Blob([buffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      saveAs(blob, `${fileName}.xlsx`);
+      saveAs(blob, `업무일자.xlsx`);
     });
   };
 
